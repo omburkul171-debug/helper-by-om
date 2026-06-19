@@ -1,0 +1,6 @@
+{
+  "name": "HELPER by OM",
+  "description": "A personal task help service where users describe digital tasks pay via UPI and submit to WhatsApp",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
