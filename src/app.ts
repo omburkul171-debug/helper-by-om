@@ -27,8 +27,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const nameInput = document.getElementById("input-name") as HTMLInputElement;
   const categorySelect = document.getElementById("input-category") as HTMLSelectElement;
   const descriptionTextarea = document.getElementById("input-description") as HTMLTextAreaElement;
-  const customPriceBlock = document.getElementById("custom-price-block") as HTMLDivElement;
-  const customPriceInput = document.getElementById("custom-price-input") as HTMLInputElement;
+  const checkoutPaymentStepContainer = document.getElementById("checkout-payment-step-container") as HTMLDivElement;
+  const checkoutFreeStepContainer = document.getElementById("checkout-free-step-container") as HTMLDivElement;
   const charCounter = document.getElementById("char-counter") as HTMLSpanElement;
   const labelMinWords = document.getElementById("label-min-words") as HTMLSpanElement;
 
@@ -96,26 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cardParent.classList.add("selected");
       }
 
-      // Toggle complex Custom Price block
-      if (selectedRadio.value === "complex") {
-        customPriceBlock.classList.remove("hidden");
-        customPriceInput.setAttribute("required", "true");
-        // Scroll to make sure custom block is fully visible
-        customPriceInput.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      } else {
-        customPriceBlock.classList.add("hidden");
-        customPriceInput.removeAttribute("required");
-      }
     });
-  });
-
-  // Strict validation for custom price input (Min ₹25)
-  customPriceInput.addEventListener("blur", () => {
-    let val = parseInt(customPriceInput.value, 10);
-    if (isNaN(val) || val < 25) {
-      customPriceInput.value = "25";
-      showToast("Minimum offer for advanced digital tasks is ₹25", "info");
-    }
   });
 
   // Description live length tracker
@@ -286,13 +267,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // Determine target amount based on radio tier
     const activeRadio = document.querySelector('input[name="complexity"]:checked') as HTMLInputElement;
     const selectedTier = activeRadio.value;
-    let amount = 5;
+    let amount = 0;
 
-    if (selectedTier === "medium") {
-      amount = 15;
-    } else if (selectedTier === "complex") {
-      const inputVal = parseInt(customPriceInput.value, 10);
-      amount = isNaN(inputVal) || inputVal < 25 ? 25 : inputVal;
+    if (selectedTier === "eco") {
+      amount = 2;
+    } else if (selectedTier === "pro") {
+      amount = 5;
+    } else if (selectedTier === "express") {
+      amount = 10;
     }
 
     // Generate strict Base-36 Request ID
@@ -323,21 +305,31 @@ document.addEventListener("DOMContentLoaded", () => {
     // Live dynamic QR generation via https://api.qrserver.com API endpoint
     const qrURI = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1f2937&data=${encodeURIComponent(upiURI)}`;
 
+    // Select custom translation quotes based on paid state as requested
+    const customQuote = amount === 0
+      ? "agar free mein karoge tabhi tumhara task perfect hoga per time lag sakta hai"
+      : "if you pay money get chance to solve your problem quickly";
+
+    const greetingLine = amount === 0
+      ? `👋 Hello OM, I have submitted a FREE helper request.`
+      : `👋 Hello OM, I've sent the UPI payment! Here are my HELPER request details:`;
+
     // Construct highly structured, polite text template for WhatsApp ingestion
     const waText = 
-`👋 Hello OM, I've sent the UPI payment! Here are my HELPER request details:
+`${greetingLine}
 
 🆔 *Request ID:* ${uniqueRequestId}
 👤 *Name:* ${name}
 📁 *Category:* ${category}
-📊 *Complexity:* ${selectedTier.toUpperCase()} (₹${amount})
+📊 *Tier Selected:* ${selectedTier.toUpperCase()} (₹${amount})
+💭 *Quote:* "${customQuote}"
 📅 *Submitted:* ${humanDate}
 
 📝 *TASK DESCRIPTION:*
 "${description}"
 
 --------------------------------------------
-✅ Please confirm payment receipt against HLP ID: ${uniqueRequestId} and initiate task support.`;
+${amount === 0 ? `✅ Please add my Free Request ID: ${uniqueRequestId} to your queue stack.` : `✅ Please confirm payment receipt against HLP ID: ${uniqueRequestId} and initiate task support.`}`;
 
     const whatsAppNumber = "919422592329";
     const waURI = `https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(waText)}`;
@@ -382,9 +374,11 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Assign specific tier status tags pill coloring
     checkoutTier.className = "px-2 py-0.5 rounded text-[11px] font-bold";
-    if (data.tier === "SIMPLE") {
+    if (data.tier === "FREE") {
       checkoutTier.classList.add("bg-brand-green-light", "text-brand-green");
-    } else if (data.tier === "MEDIUM") {
+    } else if (data.tier === "ECO") {
+      checkoutTier.classList.add("bg-brand-blue-light", "text-brand-blue");
+    } else if (data.tier === "PRO") {
       checkoutTier.classList.add("bg-brand-amber-light", "text-brand-amber-dark");
     } else {
       checkoutTier.classList.add("bg-brand-red-light", "text-brand-red");
@@ -395,42 +389,63 @@ document.addEventListener("DOMContentLoaded", () => {
     upiPayText.textContent = `Pay ₹${data.amount} via UPI App`;
     btnSendWhatsapp.href = data.whatsAppUrl;
 
-    // Reset fallback QR state and trigger image download
-    qrShimmer.classList.remove("hidden");
-    upiQrImage.classList.add("opacity-0");
-    upiQrImage.src = qrCodeApiUrl;
-
-    // Setup smooth load transitions on QR image
-    upiQrImage.onload = () => {
-      qrShimmer.classList.add("hidden");
-      upiQrImage.classList.remove("opacity-0");
-    };
-
     // Transition drawer into screen view (Mobile responsive sliding drawer)
     checkoutDrawer.classList.remove("hidden");
     document.body.classList.add("overflow-hidden"); // Guard page scroll while checkout is active
 
-    // Ensure state displays Button 2 as locked
-    lockWhatsAppButton();
+    if (data.amount === 0) {
+      // FREE QUEUE FLOW
+      checkoutPaymentStepContainer.classList.add("hidden");
+      checkoutFreeStepContainer.classList.remove("hidden");
 
-    // Init the elegant 3 second visual dynamic countdown auto-timer
-    let remainingMs = 3000;
-    countdownText.textContent = "(Unlocking chat in 3s...)";
-    btnSendWhatsapp.classList.add("relative", "overflow-hidden");
+      // Instantly unlock the Send WhatsApp button
+      btnSendWhatsapp.className = "w-full py-4 px-5 font-display font-bold bg-brand-green hover:bg-brand-green-dark hover:scale-[1.01] active:scale-95 text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-2 pulse-primary";
+      btnSendWhatsapp.removeAttribute("style");
+      btnSendWhatsapp.removeAttribute("disabled");
+      btnSendWhatsapp.setAttribute("aria-disabled", "false");
 
-    checkoutTimer = window.setInterval(() => {
-      remainingMs -= 1000;
-      if (remainingMs > 0) {
-        countdownText.textContent = `(Unlocking chat in ${remainingMs / 1000}s...)`;
-      } else {
-        // Unlock on 3-second timer trigger automatically
-        unlockWhatsAppButton();
-        if (checkoutTimer) {
-          clearInterval(checkoutTimer);
-          checkoutTimer = null;
+      promptWhatsappStep.innerHTML = `<span class="inline-block w-1.5 h-1.5 rounded-full bg-brand-green mr-1.5 animate-pulse"></span>Free request queue is active. Tap below to submit on WhatsApp!`;
+      step2Badge.className = "inline-flex items-center gap-1.5 text-xs font-bold text-brand-green font-mono uppercase bg-brand-green-light px-2 py-1 rounded";
+      countdownText.textContent = "✓ Free Request Ready";
+      countdownText.className = "text-[10px] font-mono text-brand-green font-semibold";
+    } else {
+      // PAID QUEUE FLOW
+      checkoutPaymentStepContainer.classList.remove("hidden");
+      checkoutFreeStepContainer.classList.add("hidden");
+
+      // Reset fallback QR state and trigger image download
+      qrShimmer.classList.remove("hidden");
+      upiQrImage.classList.add("opacity-0");
+      upiQrImage.src = qrCodeApiUrl;
+
+      // Setup smooth load transitions on QR image
+      upiQrImage.onload = () => {
+        qrShimmer.classList.add("hidden");
+        upiQrImage.classList.remove("opacity-0");
+      };
+
+      // Ensure state displays Button 2 as locked initially
+      lockWhatsAppButton();
+
+      // Init the elegant 3 second visual dynamic countdown auto-timer
+      let remainingMs = 3000;
+      countdownText.textContent = "(Unlocking chat in 3s...)";
+      btnSendWhatsapp.classList.add("relative", "overflow-hidden");
+
+      checkoutTimer = window.setInterval(() => {
+        remainingMs -= 1000;
+        if (remainingMs > 0) {
+          countdownText.textContent = `(Unlocking chat in ${remainingMs / 1000}s...)`;
+        } else {
+          // Unlock on 3-second timer trigger automatically
+          unlockWhatsAppButton();
+          if (checkoutTimer) {
+            clearInterval(checkoutTimer);
+            checkoutTimer = null;
+          }
         }
-      }
-    }, 1000);
+      }, 1000);
+    }
   }
 
   // ==========================================
@@ -530,13 +545,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Refresh form elements for the next digital submission
     form.reset();
     charCounter.textContent = "0 / 800";
-    customPriceBlock.classList.add("hidden");
-    customPriceInput.removeAttribute("required");
     document.querySelectorAll(".tier-card").forEach((card) => {
       card.classList.remove("selected");
     });
-    // Restore default simple card select styles
-    const defCard = document.querySelector('label[for="tier-simple"]');
+    // Restore default free card select styles
+    const defCard = document.querySelector('label[for="tier-free"]');
     if (defCard) {
       defCard.classList.add("selected");
     }
